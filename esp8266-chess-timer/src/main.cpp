@@ -4,6 +4,7 @@ enum STATE { IDLE, RESET, T_BLUE, T_RED };
 
 #include <Arduino.h>
 #include <TM1637Display.h> //https://github.com/avishorp/TM1637
+#include <ezButton.h>
 
 #define DEFAULT_TIMER 900
 
@@ -12,6 +13,10 @@ const int DIO = 2; //Set the DIO pin connection to the display
 
 const int CLK2 = 10;
 const int DIO2 = 16;
+
+ezButton skinsButton(6);
+ezButton bluesButton(5);
+
 
 int numCounter = 0;
 
@@ -44,6 +49,7 @@ bool oddTick;
 bool clockTick;
 uint16_t skinsTimer;
 uint16_t bluesTimer;
+int gameTime = DEFAULT_TIMER;
 
 void setup(void) {
   Serial.begin(115200);
@@ -65,7 +71,8 @@ void setup(void) {
   skinsTimer = DEFAULT_TIMER;
   bluesTimer = DEFAULT_TIMER;
   // set up buttons
-
+  skinsButton.setDebounceTime(50);
+  bluesButton.setDebounceTime(50);
 
 
 }
@@ -73,19 +80,41 @@ void setup(void) {
 void loop() {
   // put your main code here, to run repeatedly:
   int32_t mins=0, secs=0;
+  
+  skinsButton.loop();
+  bluesButton.loop();
+
+  int skinsButtonState = skinsButton.getState();
+  int bluesButtonState = bluesButton.getState();
+  
   switch (state)
   {
     case SETUP:
     {
         /* code */
+        if(!skinsButtonState){
+          Serial.println("red button pressed");
+          state = STANDBY;          
+        }
+        if(!bluesButtonState){
+          Serial.println("red button pressed");
+          if (clockTick){
+            if(gameTime > 60){
+              gameTime -= 60;
+            } else {
+              gameTime = 2*DEFAULT_TIMER;
+              }          
+            clockTick = false;  
+          }
+        }
         display.setSegments(lol);
-        display2.showNumberDec(15,false,2,1);
+        display2.showNumberDec((int)gameTime/60,false,2,1);
         break;
     }
     case STANDBY:
     {
-        mins = (int)DEFAULT_TIMER/60;
-        secs = DEFAULT_TIMER % 60;
+        mins = (int)gameTime/60;
+        secs = gameTime % 60;
         display.showNumberDecEx((mins*100+secs), 0b11100000, true, 4, 0);
         display2.showNumberDecEx((mins*100+secs), 0b11100000, true, 4, 0);
         break;
@@ -97,6 +126,7 @@ void loop() {
             skinsTimer--;
           } else {
             state = SKINS_WON;
+            break;
           }
           mins = (int)skinsTimer/60;
           secs = skinsTimer % 60;
@@ -113,6 +143,7 @@ void loop() {
             bluesTimer--;
           } else {
             state = BLUES_WON;
+            break;
           }
           mins = (int)bluesTimer/60;
           secs = bluesTimer % 60;
@@ -148,11 +179,13 @@ void loop() {
   if(numCounter > 5){
     numCounter -=5;
   } else {
-    numCounter = 1000;
+    numCounter = 140;
     clockTick=true;
+    Serial.println("Second passed");
     oddTick = !oddTick;
   }
-  delay(5);
+  /// @brief use millis() here instead of delay
+  delayMicroseconds(5);
 }
 
 
